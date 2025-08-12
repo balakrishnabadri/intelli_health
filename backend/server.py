@@ -141,9 +141,11 @@ def create_sample_datasets():
         oldpeak = np.random.exponential(1)
         slope = np.random.choice([0, 1, 2])
         
-        # Rule-based target
-        risk_score = age * 0.02 + cp * 0.1 + (trestbps - 120) * 0.005 + exang * 0.3
-        target = 1 if risk_score > 2.5 else 0
+        # Improved rule-based target to ensure both classes
+        risk_score = (age - 40) * 0.03 + cp * 0.15 + (trestbps - 120) * 0.01 + exang * 0.4 + (chol - 200) * 0.002
+        # Add some randomness to ensure class balance
+        risk_score += np.random.normal(0, 0.5)
+        target = 1 if risk_score > 1.0 else 0
         
         heart_data.append([age, sex, cp, max(0, trestbps), max(0, chol), fbs, 
                          restecg, max(0, thalach), exang, max(0, oldpeak), slope, target])
