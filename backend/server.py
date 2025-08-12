@@ -327,7 +327,15 @@ async def predict_heart_disease(data: HeartDiseasePrediction):
         
         # Make prediction
         prediction = models['heart'].predict(features_scaled)[0]
-        probability = models['heart'].predict_proba(features_scaled)[0][1]
+        probabilities = models['heart'].predict_proba(features_scaled)[0]
+        
+        # Handle case where model only predicts one class
+        if len(probabilities) == 1:
+            # If only one class, probability is either 0 or 1
+            probability = probabilities[0] if prediction == 1 else (1 - probabilities[0])
+        else:
+            # Normal case with two classes
+            probability = probabilities[1]
         
         # Create result
         result = PredictionResult(
