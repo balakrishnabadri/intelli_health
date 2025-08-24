@@ -22,10 +22,21 @@ import json
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
-mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
-db = client[os.environ['DB_NAME']]
+# MongoDB connection (optional)
+mongo_url = os.environ.get('MONGO_URL')
+client = None
+db = None
+
+if mongo_url:
+    try:
+        client = AsyncIOMotorClient(mongo_url)
+        db = client[os.environ['DB_NAME']]
+    except Exception as e:
+        logging.warning(f"MongoDB connection failed: {e}. Predictions will work but won't be saved.")
+        client = None
+        db = None
+else:
+    logging.info("MongoDB not configured. Predictions will work but won't be saved.")
 
 # Create the main app without a prefix
 app = FastAPI(title="IntelliHealth Multi-Disease Prediction System")
@@ -305,8 +316,12 @@ async def predict_diabetes(data: DiabetesPrediction):
             risk_level=get_risk_level(probability)
         )
         
-        # Save to database
-        await db.predictions.insert_one(result.dict())
+        # Save to database (if available)
+        if db is not None:
+            try:
+                await db.predictions.insert_one(result.dict())
+            except Exception as e:
+                logging.warning(f"Failed to save prediction to database: {e}")
         
         return result
     except Exception as e:
@@ -346,8 +361,12 @@ async def predict_heart_disease(data: HeartDiseasePrediction):
             risk_level=get_risk_level(probability)
         )
         
-        # Save to database
-        await db.predictions.insert_one(result.dict())
+        # Save to database (if available)
+        if db is not None:
+            try:
+                await db.predictions.insert_one(result.dict())
+            except Exception as e:
+                logging.warning(f"Failed to save prediction to database: {e}")
         
         return result
     except Exception as e:
@@ -381,8 +400,12 @@ async def predict_parkinsons(data: ParkinsonsPrediction):
             risk_level=get_risk_level(probability)
         )
         
-        # Save to database
-        await db.predictions.insert_one(result.dict())
+        # Save to database (if available)
+        if db is not None:
+            try:
+                await db.predictions.insert_one(result.dict())
+            except Exception as e:
+                logging.warning(f"Failed to save prediction to database: {e}")
         
         return result
     except Exception as e:
@@ -391,6 +414,9 @@ async def predict_parkinsons(data: ParkinsonsPrediction):
 @api_router.get("/predictions/history", response_model=List[PredictionResult])
 async def get_prediction_history(user_id: str = "anonymous", limit: int = 50):
     """Get prediction history for a user"""
+    if db is None:
+        return []
+    
     try:
         predictions = await db.predictions.find(
             {"user_id": user_id}
@@ -403,6 +429,13 @@ async def get_prediction_history(user_id: str = "anonymous", limit: int = 50):
 @api_router.get("/predictions/stats")
 async def get_prediction_stats():
     """Get overall prediction statistics"""
+    if db is None:
+        return {
+            "total_predictions": 0,
+            "by_disease": {},
+            "by_risk_level": {}
+        }
+    
     try:
         total_predictions = await db.predictions.count_documents({})
         
@@ -455,4 +488,5 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
-    client.close()
+    if client is not None:
+        client.close()
